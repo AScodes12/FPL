@@ -1,15 +1,23 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS so your frontend can access this backend
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Enable CORS
 app.use(cors());
 app.use(express.json());
 
-// Standard Headers to avoid FPL API blocking cloud data centers (403 Forbidden)
+// Serve static frontend files (index.html, CSS, client JS) from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Headers required to bypass FPL API cloud blocking
 const FPL_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'application/json',
@@ -17,7 +25,9 @@ const FPL_HEADERS = {
   'Referer': 'https://fantasy.premierleague.com/'
 };
 
-// Endpoint 1: Fetch General FPL Bootstrap Data (Players, Teams, Gameweeks)
+// --- API ROUTES ---
+
+// Endpoint: Fetch General FPL Bootstrap Data (Players, Teams, Gameweeks)
 app.get('/api/bootstrap-static', async (req, res) => {
   try {
     const response = await fetch('https://fantasy.premierleague.com/api/bootstrap-static/', {
@@ -38,7 +48,7 @@ app.get('/api/bootstrap-static', async (req, res) => {
   }
 });
 
-// Endpoint 2: Fetch Manager Details
+// Endpoint: Fetch Specific Manager/Entry Details
 app.get('/api/entry/:id', async (req, res) => {
   const managerId = req.params.id;
   try {
@@ -47,7 +57,7 @@ app.get('/api/entry/:id', async (req, res) => {
     });
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: `Manager not found or FPL returned ${response.status}` });
+      return res.status(response.status).json({ error: `FPL returned status ${response.status}` });
     }
 
     const data = await response.json();
@@ -58,7 +68,7 @@ app.get('/api/entry/:id', async (req, res) => {
   }
 });
 
-// Endpoint 3: Dynamic Proxy for any other endpoint
+// Wildcard Catch-all Endpoint for FPL API
 app.get('/api/proxy/*', async (req, res) => {
   const targetPath = req.params[0];
   const targetUrl = `https://fantasy.premierleague.com/api/${targetPath}`;
@@ -74,6 +84,13 @@ app.get('/api/proxy/*', async (req, res) => {
     console.error(`Error proxying ${targetUrl}:`, error);
     res.status(500).json({ error: 'Failed to fetch remote endpoint' });
   }
+});
+
+// --- ROOT ROUTE ---
+
+// Explicit route serving index.html at root "/"
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
