@@ -373,11 +373,11 @@
     }
 
     .fixture-fdr {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: bold;
+      color: #fff;
     }
 
     .transfer-suggestion {
@@ -762,7 +762,6 @@
       btn.innerHTML = '<span class="spinner"></span>Loading...';
 
       try {
-        // Fetch team analysis
         const analysisRes = await fetch(`${API_BASE}/api/analyze-team`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -772,7 +771,6 @@
         if (!analysisRes.ok) throw new Error('Failed to analyze team');
         teamData = await analysisRes.json();
 
-        // Fetch other data in parallel
         const [hotFormRes, riseRes, fixtureRes, transferRes] = await Promise.all([
           fetch(`${API_BASE}/api/hot-form`),
           fetch(`${API_BASE}/api/likely-to-rise`),
@@ -789,7 +787,6 @@
         if (fixtureRes.ok) fixtureData = await fixtureRes.json();
         if (transferRes.ok) transferData = await transferRes.json();
 
-        // Update all tabs
         updateTeamRating();
         updateHotForm();
         updateStash();
@@ -811,45 +808,47 @@
       if (!teamData) return;
 
       const stats = document.querySelectorAll('#ratingStats .stat-value');
-      stats[0].textContent = teamData.teamRating || '-';
-      stats[1].textContent = teamData.benchStrength + '%' || '-';
-      stats[2].textContent = teamData.fixtureScore || '-';
-      stats[3].textContent = teamData.formScore || '-';
+      stats[0].textContent = teamData.teamRating ?? '-';
+      stats[1].textContent = teamData.benchStrength !== undefined ? teamData.benchStrength + '%' : '-';
+      stats[2].textContent = teamData.fixtureScore ?? '-';
+      stats[3].textContent = teamData.formScore ?? '-';
 
-      // Squad analysis
       const squadDiv = document.getElementById('squadAnalysis');
       if (teamData.startingSquad && teamData.startingSquad.length > 0) {
         squadDiv.innerHTML = teamData.startingSquad
           .map(player => `
             <div class="player-row">
-              <div class="position-badge">${player.position}</div>
+              <div class="position-badge">${player.position || 'DEF'}</div>
               <div>
-                <div class="player-name">${player.player}</div>
-                <div class="player-team">£${player.price.toFixed(1)}M</div>
+                <div class="player-name">${player.player || player.name}</div>
+                <div class="player-team">£${(player.price || 0).toFixed(1)}M</div>
               </div>
               <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
                 <div class="rating-bar">
-                  <div class="rating-fill" style="width: ${Math.min(100, player.form * 10)}%"></div>
+                  <div class="rating-fill" style="width: ${Math.min(100, (player.form || 0) * 10)}%"></div>
                 </div>
               </div>
               <div style="text-align: center;">
-                <div style="font-weight: bold; color: var(--accent);">${player.ppg.toFixed(1)}</div>
+                <div style="font-weight: bold; color: var(--accent);">${(player.ppg || 0).toFixed(1)}</div>
                 <div style="font-size: 11px; color: var(--secondary);">PPG</div>
               </div>
-              <div class="form-indicator ${getFormClass(player.form)}">${player.form.toFixed(1)}</div>
+              <div class="form-indicator ${getFormClass(player.form || 0)}">${(player.form || 0).toFixed(1)}</div>
             </div>
           `)
           .join('');
+      } else {
+        squadDiv.innerHTML = '<div class="empty-state"><p>No squad data available</p></div>';
       }
 
-      // Weaknesses
       const weakDiv = document.getElementById('weaknessesAnalysis');
+      let weakHtml = '';
+
       if (teamData.weaknesses && teamData.weaknesses.length > 0) {
-        weakDiv.innerHTML = teamData.weaknesses
+        weakHtml += teamData.weaknesses
           .map(w => `
             <div style="margin-bottom: 16px; padding: 12px; background: rgba(244, 67, 54, 0.1); border-left: 3px solid #ef5350; border-radius: 4px;">
               <div style="font-weight: 600; color: #ef5350; margin-bottom: 6px;">⚠️ ${w.type}</div>
-              <div style="color: var(--secondary); margin-bottom: 6px;">${w.players.join(', ')}</div>
+              <div style="color: var(--secondary); margin-bottom: 6px;">${Array.isArray(w.players) ? w.players.join(', ') : w.players}</div>
               <div style="font-size: 12px; color: var(--secondary);">💡 ${w.recommendation}</div>
             </div>
           `)
@@ -857,22 +856,24 @@
       }
 
       if (teamData.opportunities && teamData.opportunities.length > 0) {
-        weakDiv.innerHTML += teamData.opportunities
+        weakHtml += teamData.opportunities
           .map(o => `
             <div style="margin-bottom: 16px; padding: 12px; background: rgba(76, 175, 80, 0.1); border-left: 3px solid #4caf50; border-radius: 4px;">
               <div style="font-weight: 600; color: #4caf50; margin-bottom: 6px;">✅ ${o.type}</div>
-              <div style="color: var(--secondary); margin-bottom: 6px;">${o.players.join(', ')}</div>
+              <div style="color: var(--secondary); margin-bottom: 6px;">${Array.isArray(o.players) ? o.players.join(', ') : o.players}</div>
               <div style="font-size: 12px; color: var(--secondary);">💡 ${o.recommendation}</div>
             </div>
           `)
           .join('');
       }
+
+      weakDiv.innerHTML = weakHtml || '<div class="empty-state"><p>No critical weaknesses or immediate opportunities detected.</p></div>';
     }
 
     function updateHotForm() {
       const container = document.getElementById('hotFormContent');
       if (!hotFormData || hotFormData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎯</div><p>Loading hot form players...</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎯</div><p>No hot-form players found.</p></div>';
         return;
       }
 
@@ -882,18 +883,18 @@
             <div class="position-badge">${player.position}</div>
             <div>
               <div class="player-name">${player.name}</div>
-              <div class="player-team">£${player.price.toFixed(1)}M • ${player.ownership.toFixed(1)}% owned</div>
+              <div class="player-team">£${(player.price || 0).toFixed(1)}M • ${(player.ownership || 0).toFixed(1)}% owned</div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
               <div class="rating-bar">
-                <div class="rating-fill" style="width: ${Math.min(100, player.form * 15)}%"></div>
+                <div class="rating-fill" style="width: ${Math.min(100, (player.form || 0) * 15)}%"></div>
               </div>
             </div>
             <div style="text-align: center;">
-              <div style="font-weight: bold; color: var(--accent);">${player.ppg.toFixed(1)}</div>
+              <div style="font-weight: bold; color: var(--accent);">${(player.ppg || 0).toFixed(1)}</div>
               <div style="font-size: 11px; color: var(--secondary);">PPG</div>
             </div>
-            <div class="form-indicator form-excellent">🔥 ${player.form.toFixed(1)}</div>
+            <div class="form-indicator form-excellent">🔥 ${(player.form || 0).toFixed(1)}</div>
           </div>
         `)
         .join('');
@@ -902,7 +903,7 @@
     function updateStash() {
       const riseContainer = document.getElementById('riseContent');
       if (!riseData || riseData.length === 0) {
-        riseContainer.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📈</div><p>Loading players likely to rise...</p></div>';
+        riseContainer.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📈</div><p>No price rise candidates currently found.</p></div>';
       } else {
         riseContainer.innerHTML = riseData.slice(0, 10)
           .map(player => `
@@ -910,18 +911,18 @@
               <div class="position-badge">${player.position}</div>
               <div>
                 <div class="player-name">${player.name}</div>
-                <div class="player-team">£${player.price.toFixed(1)}M • ${player.ownership.toFixed(1)}% owned</div>
+                <div class="player-team">£${(player.price || 0).toFixed(1)}M • ${(player.ownership || 0).toFixed(1)}% owned</div>
               </div>
               <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
                 <div class="rating-bar">
-                  <div class="rating-fill" style="width: ${Math.min(100, player.rise_likelihood * 100)}%"></div>
+                  <div class="rating-fill" style="width: ${Math.min(100, (player.rise_likelihood || 0) * 100)}%"></div>
                 </div>
               </div>
               <div style="text-align: center;">
-                <div style="font-weight: bold; color: var(--accent);">${player.ppg.toFixed(1)}</div>
+                <div style="font-weight: bold; color: var(--accent);">${(player.ppg || 0).toFixed(1)}</div>
                 <div style="font-size: 11px; color: var(--secondary);">PPG</div>
               </div>
-              <div class="badge" style="background: linear-gradient(135deg, #4caf50 0%, #81c784 100%);">${(player.rise_likelihood * 100).toFixed(0)}%</div>
+              <div class="badge" style="background: linear-gradient(135deg, #4caf50 0%, #81c784 100%);">${((player.rise_likelihood || 0) * 100).toFixed(0)}%</div>
             </div>
           `)
           .join('');
@@ -933,19 +934,25 @@
         return;
       }
 
-      holdContainer.innerHTML = teamData.startingSquad
-        .filter(p => p.form > 5)
+      const holdPlayers = teamData.startingSquad.filter(p => (p.form || 0) > 5);
+
+      if (holdPlayers.length === 0) {
+        holdContainer.innerHTML = '<div class="empty-state"><p>No high-form players to hold currently.</p></div>';
+        return;
+      }
+
+      holdContainer.innerHTML = holdPlayers
         .slice(0, 10)
         .map(player => `
           <div class="player-row">
             <div class="position-badge">${player.position}</div>
             <div>
-              <div class="player-name">${player.player}</div>
-              <div class="player-team">Form: ${player.form.toFixed(1)} • ${player.ppg.toFixed(1)} PPG</div>
+              <div class="player-name">${player.player || player.name}</div>
+              <div class="player-team">Form: ${(player.form || 0).toFixed(1)} • ${(player.ppg || 0).toFixed(1)} PPG</div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
               <div class="rating-bar">
-                <div class="rating-fill" style="width: ${Math.min(100, player.form * 10)}%"></div>
+                <div class="rating-fill" style="width: ${Math.min(100, (player.form || 0) * 10)}%"></div>
               </div>
             </div>
             <div class="form-indicator form-excellent">✅ HOLD</div>
@@ -957,7 +964,7 @@
     function updateFixtures() {
       const container = document.getElementById('fixtureContent');
       if (!fixtureData || fixtureData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><p>Loading fixtures...</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><p>No fixture data available...</p></div>';
         return;
       }
 
@@ -983,33 +990,32 @@
     function updateTransfers() {
       const container = document.getElementById('transferSuggestions');
       if (!transferData || transferData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎯</div><p>Loading transfer suggestions...</p></div>';
-        return;
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎯</div><p>No transfer suggestions available right now.</p></div>';
+      } else {
+        container.innerHTML = transferData.slice(0, 5)
+          .map(suggestion => `
+            <div class="transfer-suggestion">
+              <div class="suggestion-main">
+                <div class="suggestion-out">
+                  <div class="suggestion-label">Transfer Out</div>
+                  <div class="suggestion-player">${suggestion.out.name}</div>
+                  <div class="suggestion-detail">Form: ${(suggestion.out.form || 0).toFixed(1)} • £${(suggestion.out.price || 0).toFixed(1)}M</div>
+                </div>
+                <div class="transfer-arrow">→</div>
+                <div class="suggestion-in">
+                  <div class="suggestion-label">Transfer In</div>
+                  <div class="suggestion-player">${suggestion.in.name}</div>
+                  <div class="suggestion-detail">Form: ${suggestion.in.form !== undefined ? suggestion.in.form.toFixed(1) : '-'} • £${suggestion.in.price !== undefined ? suggestion.in.price.toFixed(1) : '-'}M</div>
+                </div>
+              </div>
+              <div class="benefit">+${suggestion.potentialGain || 0} pts</div>
+            </div>
+          `)
+          .join('');
       }
 
-      container.innerHTML = transferData.slice(0, 5)
-        .map(suggestion => `
-          <div class="transfer-suggestion">
-            <div class="suggestion-main">
-              <div class="suggestion-out">
-                <div class="suggestion-label">Transfer Out</div>
-                <div class="suggestion-player">${suggestion.out.name}</div>
-                <div class="suggestion-detail">Form: ${suggestion.out.form.toFixed(1)} • £${suggestion.out.price.toFixed(1)}M</div>
-              </div>
-              <div class="transfer-arrow">→</div>
-              <div class="suggestion-in">
-                <div class="suggestion-label">Transfer In</div>
-                <div class="suggestion-player">${suggestion.in.name}</div>
-                <div class="suggestion-detail">Form: ${suggestion.in.form?.toFixed(1) || '-'} • £${suggestion.in.price?.toFixed(1) || '-'}M</div>
-              </div>
-            </div>
-            <div class="benefit">+${suggestion.potentialGain} pts</div>
-          </div>
-        `)
-        .join('');
-
       const squadDiv = document.getElementById('squadForTransfer');
-      if (teamData && teamData.startingSquad) {
+      if (teamData && teamData.startingSquad && teamData.startingSquad.length > 0) {
         squadDiv.innerHTML = `
           <div class="scroll-container">
             <table>
@@ -1025,17 +1031,19 @@
               <tbody>
                 ${teamData.startingSquad.map(p => `
                   <tr>
-                    <td>${p.player}</td>
+                    <td>${p.player || p.name}</td>
                     <td>${p.position}</td>
-                    <td>£${p.price.toFixed(1)}M</td>
-                    <td>${p.form.toFixed(1)}</td>
-                    <td>${p.ppg.toFixed(1)}</td>
+                    <td>£${(p.price || 0).toFixed(1)}M</td>
+                    <td>${(p.form || 0).toFixed(1)}</td>
+                    <td>${(p.ppg || 0).toFixed(1)}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           </div>
         `;
+      } else {
+        squadDiv.innerHTML = '<div class="empty-state"><p>Analyze your team first to view squad breakdown.</p></div>';
       }
     }
 
@@ -1043,15 +1051,15 @@
       if (!teamData) return;
 
       const stats = document.querySelectorAll('#advancedStats .stat-value');
-      stats[0].textContent = teamData.squadValue || '-';
-      stats[1].textContent = '0'; // Would need entry history
-      stats[2].textContent = '-';
-      stats[3].textContent = '-';
+      stats[0].textContent = teamData.totalPoints ?? '-';
+      stats[1].textContent = teamData.transfersMade ?? '0';
+      stats[2].textContent = teamData.currentRank ? `#${teamData.currentRank.toLocaleString()}` : '-';
+      stats[3].textContent = teamData.overallRank ? `#${teamData.overallRank.toLocaleString()}` : '-';
 
       const valueStats = document.querySelectorAll('#valueStats .stat-value');
-      valueStats[0].textContent = '£' + teamData.squadValue;
-      valueStats[1].textContent = '£' + teamData.bankValue;
-      valueStats[2].textContent = '-';
+      valueStats[0].textContent = teamData.squadValue ? '£' + teamData.squadValue + 'M' : '-';
+      valueStats[1].textContent = teamData.bankValue !== undefined ? '£' + teamData.bankValue + 'M' : '-';
+      valueStats[2].textContent = teamData.costChanges !== undefined ? (teamData.costChanges >= 0 ? '+' : '') + '£' + teamData.costChanges + 'M' : '-';
     }
 
     function getFormClass(form) {
@@ -1063,22 +1071,17 @@
 
     function getFixtureFDRColor(fdr) {
       if (fdr <= 2) return 'linear-gradient(135deg, #4caf50 0%, #81c784 100%)';
-      if (fdr <= 3) return 'linear-gradient(135deg, #fbc02d 0%, #f57f17 100%)';
-      return 'linear-gradient(135deg, #ef5350 0%, #c62828 100%)';
+      if (fdr <= 3) return 'linear-gradient(135deg, #fbc02d 0%, #ffe082 100%)';
+      if (fdr <= 4) return 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)';
+      return 'linear-gradient(135deg, #ef5350 0%, #e57373 100%)';
     }
 
     function getFixtureStatus(status) {
-      const statusMap = {
-        'U': '⏳ Upcoming',
-        'L': '📍 Live',
-        'F': '✅ Finished',
-        'S': '⏸ Suspended'
-      };
-      return statusMap[status] || 'Unknown';
+      if (!status) return 'Upcoming';
+      if (status.finished) return 'Finished';
+      if (status.started) return 'Live';
+      return 'Upcoming';
     }
-
-    // Load example team ID on startup
-    document.getElementById('teamIdInput').placeholder = 'e.g., 1234567';
   </script>
 </body>
 </html>
