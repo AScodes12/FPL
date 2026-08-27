@@ -1,5 +1,5 @@
 {
-  "name": "fpl-elite-analyzer",
+  "name": "fpl-analyzer",
   "version": "1.0.0",
   "description": "Fantasy Premier League team analyzer with AI-powered insights",
   "main": "server.js",
