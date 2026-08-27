@@ -1,13 +1,10 @@
 {
   "name": "fpl-api-server",
   "version": "1.0.0",
-  "description": "FPL Proxy Server for Render Deployment",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=20.0.0"
   },
   "dependencies": {
     "cors": "^2.8.5",
